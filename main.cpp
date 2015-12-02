@@ -7,6 +7,13 @@
 #include <QVector>
 #include <QTextStream>
 #include <QMap>
+#include <QSet>
+
+QSet<QString> noobVariables;
+QMap<QString, QString> yarnVariables;
+QMap<QString, int> numbrVariables;
+QMap<QString, float> numbarVariables;
+QMap<QString, bool> troofVariables;
 
 class Parser {
 protected:
@@ -14,6 +21,7 @@ protected:
     QStringList inputFile_;
     QString currentToken_;
     int listPosition;
+    QVector<QString> closingTokens_;
 
 public:
     Parser(QStringList &cleanFile) : inputFile_(cleanFile), listPosition(0) {
@@ -32,18 +40,7 @@ public:
 };
 
 typedef QMap<QString, Parser*>::iterator MapIT;
-
-
-class MultiLineCommentParser : public KeywordParser {
-    public:
-    CommentParser(QStringList &cleanFile) : Parser::Parser(cleanFile)
-    {
-    }
-
-    virtual bool parseToken(const QString &input, QStringList &opCodes) {
-        return true;
-    }
-};
+typedef QSet<QString>::iterator NoobIT;
 
 class KeywordParser : public Parser {
     const QString keyword_;
@@ -57,38 +54,121 @@ public:
     }
 };
 
-
-class OpenEndedKeywordParser : public Parser {
-    const QString keyword_;
+class MultiLineCommentParser : public Parser {
 public:
-    KeywordParser(const QString keyword, QStringList &cleanFile) : Parser::Parser(cleanFile), keyword_(keyword)
-    {
+    MultiLineCommentParser(QStringList &cleanFile) : Parser::Parser(cleanFile) {
     }
 
-    bool parseToken(const QString &input, QStringList &opCodes) {
+    virtual bool parseToken(const QString &input, QStringList &opCodes) {
+        // check for obtw
+        // advance the token until reaching TLDR
+        // return true once we find it
+        do {
+            advanceToken();
+        } while (!currentToken_.endsWith("TLDR"));
+    }
+};
 
-        return keyword_ == input;
+class VarParser : public Parser {
+public:
+    VarParser(QStringList &cleanFile) : Parser::Parser(cleanFile) {
+    }
+
+    virtual bool parseToken(const QString &input, QStringList &opCodes) {
+        if (input.startsWith("I HAS A")) {
+            noobVariables.insert(input.section(' ',3,3));
+            return true;
+        }
+
+        return false;
     }
 };
 
 
+// this checks for the keyword and does not care what comes after it on that line
+class OpenEndedKeywordParser : public Parser {
+    const QString keyword_;
+public:
+    OpenEndedKeywordParser(const QString keyword, QStringList &cleanFile) : Parser::Parser(cleanFile), keyword_(keyword)
+    {
+    }
+
+    bool parseToken(const QString &input, QStringList &opCodes) {
+        // Not sure whether this test is required.
+        // The word would have been checked to get here.
+        return input.startsWith(keyword_);
+    }
+};
+
+// this checks for the keyword and does not care what comes after it on that line
+class varInitialiserParser : public Parser {
+public:
+    varInitialiserParser(const QString keyword, QStringList &cleanFile) : Parser::Parser(cleanFile)
+    {
+    }
+
+    bool parseToken(const QString &input, QStringList &opCodes) {
+        NoobIT it = noobVariables.find(input.section(' ',1,1));
+
+        if (it == noobVariables.end())
+            return false;
+
+        QString val = *it;
+
+        if ("R" == input.section(' ',3,3)) {
+            QString baseVal = input.section(' ',4,4);
+            bool ok;
+
+            int intVal = baseVal.toInt(&ok, 10);
+            if (ok) {
+                numbrVariables[val] = intVal;
+                return true;
+            }
+
+            float floatVal = baseVal.toFloat(&ok);
+            if (ok) {
+                numbarVariables[val] = floatVal;
+                return true;
+            }
+
+            if (baseVal == "TRUE")
+                troofVariables[val] = true;
+            else if (baseVal == "FALSE")
+                troofVariables[val] = true;
+            else
+                yarnVariables[val] = baseVal;
+
+            return true;
+        }
+        return false;
+    }
+};
+
 class FileLevelParser : public Parser {
 public:
     FileLevelParser(QStringList &cleanFile) : Parser::Parser(cleanFile) {
-        KeywordParser *haiParser = new OpenEndedKeywordParser("HAI", cleanFile);
+        OpenEndedKeywordParser *haiParser = new OpenEndedKeywordParser("HAI", cleanFile);
         parserMap_["HAI"] = haiParser;
 
         OpenEndedKeywordParser *commentParser = new OpenEndedKeywordParser("BTW", cleanFile);
         parserMap_["BTW"] = commentParser;
 
-        MultiLineCommentParser *bigCommentParser = new OpenEndedKeywordParser("OBTW", cleanFile);
+        MultiLineCommentParser *bigCommentParser = new MultiLineCommentParser(cleanFile);
         parserMap_["OBTW"] = bigCommentParser;
 
+        // what is the best way to end the program?
+        VarParser *varParser = new VarParser(cleanFile);
+        parserMap_["I"] = varParser;
     }
 
     // need to split the lines by spaces too!!!
     virtual bool parseToken(const QString &input, QStringList &opCodes) {
-        MapIT it = parserMap_.find(input);
+        QStringList tokens = input.split(' ');
+
+        MapIT it = parserMap_.find(tokens[0]);
+
+        // need to split character by space and then pass the entire thing though
+        // if we find a match
         if (it == parserMap_.end())
             return false;
         return (*it)->parseToken(input, opCodes);
@@ -96,47 +176,16 @@ public:
 };
 
 
-//class OutFile {
-//    QVector<QString> fileContents_;
-//    Parser* currentParser_;
-
-//public:
-//    OutFile() {
-//        fileContents_.clear();
-//        currentParser_ = new FileLevelParser();
-//    }
-
-//    void parse(const QString line) {
-//        QString inputLine = line.simplified();
-//        QStringList inputLines = inputLine.split(',');
-
-//        // go through each item on the inputLines and read them in by space
-//        // Send them through the current parser and see if it parses.
-//        // If not then read another token in until.
-//        // Do we set them up as a stack?
-//        // how about each parser has all possible parsers as members?
-//        QString outputLine;
-//        foreach(QString item, inputLines) {
-//            if (currentParser_->parseToken(item, outputLine)) {
-//                fileContents_.push_back(line);
-//            }
-//        }
-//    }
-
-//    void add(const QString line) {
-//        fileContents_.push_back(line);
-//    }
-//};
-
 // This class takes in the file to be compiled and a reference to the input file.
 // The input file will be filled with a clean version of the source file.
 // It will have no comments, no excessive white space
-class FileParser {
+class ParsingDirector {
     QStringList cleanFile_;
     FileLevelParser *fileParser_;
     QString separators_;
+
 public:
-    FileParser(const QStringList &cleanFile) :  cleanFile_(cleanFile) {
+    ParsingDirector(const QStringList &cleanFile) :  cleanFile_(cleanFile) {
         fileParser_ = new FileLevelParser(cleanFile_);
     }
 
@@ -191,7 +240,7 @@ int main(int argc, char *argv[])
     cleanFile_ = loadFile(inputFile);
 
     // Send list to the file parser
-    FileParser parser(cleanFile_);
+    ParsingDirector parser(cleanFile_);
     parser.parseFile(opCodes_);
 
     return a.exec();
