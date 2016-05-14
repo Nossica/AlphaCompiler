@@ -14,10 +14,10 @@
 #include<variables.hpp>
 
 QMap<QString, Variable*> noobVariables;
-QMap<QString, QString> yarnVariables;
-QMap<QString, int> numbrVariables;
-QMap<QString, float> numbarVariables;
-QMap<QString, bool> troofVariables;
+QMap<QString, Variable*> yarnVariables;
+QMap<QString, Variable*> numbrVariables;
+QMap<QString, Variable*> numbarVariables;
+QMap<QString, Variable*> troofVariables;
 
 
 class Parser {
@@ -87,11 +87,40 @@ public:
     virtual bool parseToken(const QString &input) {
         // the token that comes after the keyword_ is the var name
         // there might be more after that that specifies stuff
-        QString varDetails = input.right(input.length() - keyword_.length());
-        varDetails = varDetails.simplified();
-        varDetails.replace( " ", "" );
-
-        // if (-1 == varDetails.indexOf(" ")) {
+        QStringList line = input.split(QRegExp("\\s+"));
+        QString varName = line[3];
+//        varDetails = varDetails.simplified();
+//        varDetails.replace( " ", "" );
+        if (line.count() > 4 && line[4] == "ITZ")  {
+            // test if line[4] is an int, a float, a boolean or just a yarn
+            QString str = line[5];
+            bool ok;
+            int hex = str.toInt(&ok, 16);
+            if (!ok) {
+                bool troof = str.toInt(&ok, 2);
+                if (!ok){
+                    double val = str.toDouble(&ok);
+                    if (!ok) {
+                        yarnVariable* newVar = new yarnVariable(outputInterface_, varName, 0);
+                        yarnVariables[varName] = newVar;
+                    }
+                    else {
+                        numbarVariable* newVar = new numbarVariable(outputInterface_, varName, 0);
+                        numbarVariables[varName] = newVar;
+                    }
+                }
+                else {
+                    troofVariable* newVar = new troofVariable(outputInterface_, varName, 0);
+                    troofVariables[varName] = newVar;
+                }
+            }
+            else {
+                numbrVariable* newVar = new numbrVariable(outputInterface_, varName, 0);
+                numbrVariables[varName] = newVar;
+            }
+        }
+        else {
+            // if (-1 == varDetails.indexOf(" ")) {
 
             // TODO
             // Test what type of var it is
@@ -99,9 +128,9 @@ public:
             // Write the memory manager class so it can calculate the memory location
             // Pass a reference to the memory manager through to the variables so they
             // can update the value
-            Variable* newVar = new Variable(outputInterface_, varDetails, 0);
-            noobVariables[varDetails] = newVar;
-        //}
+            Variable* newVar = new Variable(outputInterface_, varName, 0);
+            noobVariables[varName] = newVar;
+        }
         return false;
     }
 };
@@ -115,16 +144,64 @@ public:
     virtual bool parseToken(const QString &input) {
         QStringList list = input.split(QRegExp("\\s+"));
         // check whether var matches a declared var, if it does then set it
-        QMap<QString, Variable*>::iterator it = noobVariables.find(list[0]);
-        if (it != noobVariables.end()) {
-            Variable* var = it.value();
+        QMap<QString, Variable*>::iterator it;
 
-            if (list[1] == "R") {
+        do {
+            it = noobVariables.find(list[0]);
+            if (it != noobVariables.end()) {
+                QString varName = list[0];
                 bool ok;
-                var->setValue(list[2].toInt(&ok, 16));
+                QString str = list[2];
+                int hex = str.toInt(&ok, 16);
+                if (!ok) {
+                    bool troof = str.toInt(&ok, 2);
+                    if (!ok){
+                        double val = str.toDouble(&ok);
+                        if (!ok) {
+                            yarnVariable* newVar = new yarnVariable(outputInterface_, varName, 0);
+                            yarnVariables[varName] = newVar;
+                        }
+                        else {
+                            numbarVariable* newVar = new numbarVariable(outputInterface_, varName, 0);
+                            numbarVariables[varName] = newVar;
+                        }
+                    }
+                    else {
+                        troofVariable* newVar = new troofVariable(outputInterface_, varName, 0);
+                        troofVariables[varName] = newVar;
+                    }
+                }
+                else {
+                    numbrVariable* newVar = new numbrVariable(outputInterface_, varName, 0);
+                    numbrVariables[varName] = newVar;
+                }
+                noobVariables.erase(it);
             }
+
+            it = numbrVariables.find(list[0]);
+            if (it != numbrVariables.end())
+                break;
+
+            it = troofVariables.find(list[0]);
+            if (it != troofVariables.end())
+                break;
+
+            it = yarnVariables.find(list[0]);
+            if (it != yarnVariables.end())
+                break;
+
+            it = numbarVariables.find(list[0]);
+            if (it != numbarVariables.end())
+                break;
+        } while(1);
+
+        Variable* var = it.value();
+
+        if (list[1] == "R") {
+            var->setValue(list[2]);
         }
-        return false;
+
+        return true;
     }
 };
 

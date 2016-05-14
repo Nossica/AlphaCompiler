@@ -4,27 +4,20 @@ BTW ignore this
 OBTW  this is not the line you want
 	Or this one
 TLDR
-I HAS A VAR	
-VAR R 3
-KTHXBYE
 
-I HAS A VAR
+OBTW
 
+I HAS A intVar	
+intVar R 3
 
-I HAS A VAR
-VAR R 3
-
-BTW ignore this
-
-OBTW  this is not the line you want
-	Or this one
+I HAS A dubVar	
+dubVar R 3.14
 TLDR
 
+I HAS A yarnVar
+yarnVar R “t”
 
-
-
-
-
+KTHXBYE
 
 
 
